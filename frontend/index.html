@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Turing dApp - Votação de Projetos</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Ethers.js v6 UMD -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+  <!-- Topbar -->
+  <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center text-white font-black text-xl shadow-lg">
+          ₮
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight">Turing dApp</h1>
+          <p class="text-xs text-slate-400">Sistema de Votação & Moeda TUR</p>
+        </div>
+      </div>
+
+      <!-- Status Badge & Connect Button -->
+      <div class="flex items-center space-x-3">
+        <div id="votingStatusBadge" class="px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 bg-slate-700 text-slate-300">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-400 animate-pulse"></span>
+          <span>Verificando status...</span>
+        </div>
+
+        <button id="connectWalletBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow-md flex items-center gap-2">
+          <i class="fa-solid fa-wallet"></i>
+          <span id="connectBtnText">Conectar Carteira</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-6xl mx-auto px-4 py-8 flex-1 w-full space-y-6">
+
+    <!-- Account Details Alert / Banner -->
+    <section id="userCard" class="hidden bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-lg">
+      <div class="flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div>
+          <div class="flex items-center gap-3">
+            <span class="text-slate-400 text-sm">Usuário conectado:</span>
+            <span id="userCodename" class="px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold rounded-lg text-sm">Desconhecido</span>
+            <span id="roleBadge" class="px-2.5 py-0.5 rounded text-xs font-semibold bg-slate-700 text-slate-300">Aluno</span>
+          </div>
+          <p class="text-xs text-slate-400 mt-1 font-mono break-all" id="userAddress">0x000...</p>
+        </div>
+        <div class="bg-slate-900/80 px-5 py-3 rounded-xl border border-slate-700 flex items-center gap-4">
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wider">Meu Saldo</div>
+            <div class="text-2xl font-black text-amber-400 flex items-center gap-1.5">
+              <span id="myBalance">0</span> <span class="text-sm font-normal text-slate-400">TUR</span>
+            </div>
+          </div>
+          <div class="border-l border-slate-700 pl-4">
+            <div class="text-xs text-slate-400 uppercase tracking-wider">Votos Feitos</div>
+            <div class="text-2xl font-black text-indigo-400" id="myVoteCount">0</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Grid: Ações & Ranking -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Coluna da Esquerda: Painéis de Ação (Vote & Superuser) -->
+      <div class="lg:col-span-7 space-y-6">
+
+        <!-- Painel 1: Votar (Visível para todos os usuários autorizados) -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-lg">
+          <div class="flex items-center justify-between mb-4 border-b border-slate-700 pb-3">
+            <h2 class="text-lg font-bold flex items-center gap-2">
+              <i class="fa-solid fa-check-to-slot text-indigo-400"></i>
+              Votar em um Projeto
+            </h2>
+            <span class="text-xs bg-slate-700 text-slate-300 px-2.5 py-1 rounded-md">Regra: 1 a 2 Turings</span>
+          </div>
+
+          <form id="voteForm" class="space-y-4">
+            <div>
+              <label for="voteTarget" class="block text-sm font-medium text-slate-300 mb-1">
+                Codinome do Aluno (Alvo):
+              </label>
+              <select id="voteTarget" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="" disabled selected>Selecione um aluno...</option>
+              </select>
+              <p class="text-xs text-slate-400 mt-1">A professora está excluída da lista conforme especificado.</p>
+            </div>
+
+            <div>
+              <label for="voteAmount" class="block text-sm font-medium text-slate-300 mb-1">
+                Quantidade de Turings (1 ou 2):
+              </label>
+              <input type="number" id="voteAmount" min="1" max="2" value="1" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <button type="submit" id="submitVoteBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg transition flex justify-center items-center gap-2">
+              <i class="fa-solid fa-paper-plane"></i>
+              Confirmar Voto
+            </button>
+          </form>
+        </div>
+
+        <!-- Painel 2: Exclusivo para Superusuários (Owner / Professora Roberta) -->
+        <div id="superUserPanel" class="hidden bg-slate-800/90 border border-amber-500/40 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+          <div class="absolute top-0 right-0 bg-amber-500 text-slate-900 font-black text-[10px] px-3 py-0.5 rounded-bl-lg uppercase tracking-wider">
+            Painel Superusuário
+          </div>
+
+          <div class="flex items-center justify-between mb-4 border-b border-slate-700 pb-3">
+            <h2 class="text-lg font-bold text-amber-400 flex items-center gap-2">
+              <i class="fa-solid fa-crown"></i>
+              Administração da Votação e Tokens
+            </h2>
+          </div>
+
+          <!-- Controle de Votação (votingOn / votingOff) -->
+          <div class="mb-6 p-4 bg-slate-900/60 rounded-xl border border-slate-700/80">
+            <h3 class="text-sm font-semibold text-slate-300 mb-2">Controle Geral da Votação</h3>
+            <div class="grid grid-cols-2 gap-3">
+              <button id="btnVotingOn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2 px-3 rounded-lg text-sm transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-play"></i> Ativar Votação (votingOn)
+              </button>
+              <button id="btnVotingOff" class="bg-rose-600 hover:bg-rose-500 text-white font-medium py-2 px-3 rounded-lg text-sm transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-pause"></i> Pausar Votação (votingOff)
+              </button>
+            </div>
+          </div>
+
+          <!-- Emitir Tokens (issueToken) -->
+          <form id="issueTokenForm" class="space-y-4 p-4 bg-slate-900/60 rounded-xl border border-slate-700/80">
+            <h3 class="text-sm font-semibold text-slate-300">Emitir Tokens Sob Demanda (issueToken)</h3>
+            <div>
+              <label for="issueTarget" class="block text-xs font-medium text-slate-400 mb-1">
+                Codinome do Aluno:
+              </label>
+              <select id="issueTarget" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="" disabled selected>Selecione um aluno...</option>
+              </select>
+            </div>
+            <div>
+              <label for="issueAmount" class="block text-xs font-medium text-slate-400 mb-1">
+                Quantidade de Turings a emitir:
+              </label>
+              <input type="number" id="issueAmount" min="1" value="10" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+            <button type="submit" id="btnIssueToken" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2 px-4 rounded-lg text-sm shadow transition flex justify-center items-center gap-2">
+              <i class="fa-solid fa-coins"></i>
+              Emitir Turings
+            </button>
+          </form>
+        </div>
+
+      </div>
+
+      <!-- Coluna da Direita: Ranking de Alunos (Ordem por Turings) -->
+      <div class="lg:col-span-5">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-lg h-full flex flex-col">
+          <div class="flex items-center justify-between mb-4 border-b border-slate-700 pb-3">
+            <h2 class="text-lg font-bold flex items-center gap-2">
+              <i class="fa-solid fa-trophy text-amber-400"></i>
+              Placar dos Alunos
+            </h2>
+            <button id="refreshRankingBtn" class="text-slate-400 hover:text-slate-200 text-xs flex items-center gap-1 transition">
+              <i class="fa-solid fa-rotate"></i> Atualizar
+            </button>
+          </div>
+
+          <div class="text-xs text-slate-400 mb-3">
+            Atualização automática via eventos do Smart Contract e polling de saldos.
+          </div>
+
+          <div class="overflow-x-auto flex-1">
+            <table class="w-full text-left text-sm">
+              <thead>
+                <tr class="text-slate-400 border-b border-slate-700 text-xs uppercase">
+                  <th class="py-2.5 px-3">#</th>
+                  <th class="py-2.5 px-3">Aluno</th>
+                  <th class="py-2.5 px-3 text-right">Turings</th>
+                </tr>
+              </thead>
+              <tbody id="rankingTableBody" class="divide-y divide-slate-700/60 font-medium">
+                <tr>
+                  <td colspan="3" class="py-4 text-center text-slate-500">Carregando placar...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Toast / Notificações de Feedback -->
+    <div id="toast" class="hidden fixed bottom-6 right-6 max-w-md p-4 rounded-xl shadow-2xl text-sm flex items-center gap-3 z-50 transition-all duration-300">
+      <i id="toastIcon" class="fa-solid fa-circle-check text-xl"></i>
+      <span id="toastMsg" class="flex-1">Operação concluída com sucesso!</span>
+    </div>
+
+  </main>
+
+  <footer class="bg-slate-900 border-t border-slate-800 text-center py-4 text-xs text-slate-500">
+    Turing dApp &bull; Blockchain Hardhat Localhost:8545 &bull; Atividade 13
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
