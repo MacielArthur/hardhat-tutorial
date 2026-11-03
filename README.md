@@ -212,7 +212,7 @@ A entrega oficial é feita através do formulário do Google indicado no enuncia
    ```bash
    git push origin main
    ```
-   *(Nota: O agente de IA não realiza push para garantir total controle do usuário sobre as alterações remotas).*
+   *(Nota: Certifique-se de que a branch principal está atualizada antes de enviar).*
 4. Acesse o formulário [https://forms.gle/tisTeNnmTtSSWSML7](https://forms.gle/tisTeNnmTtSSWSML7) e envie o link do seu repositório no GitHub.
 
 ---
