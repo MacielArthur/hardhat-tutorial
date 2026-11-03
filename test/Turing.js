@@ -43,8 +43,8 @@ describe("Turing Smart Contract (Atividade 13)", function () {
       expect(await turing.owner()).to.equal(owner.address);
     });
 
-    it("Deve inicializar a votação como inativa (false)", async function () {
-      expect(await turing.voting()).to.equal(false);
+    it("Deve inicializar a votação como ativa (true) conforme especificação", async function () {
+      expect(await turing.voting()).to.equal(true);
     });
 
     it("Deve carregar todos os usuários pré-autorizados da tabela", async function () {
@@ -111,18 +111,14 @@ describe("Turing Smart Contract (Atividade 13)", function () {
 
   describe("Regras da Função vote()", function () {
     beforeEach(async function () {
-      // Ativa votação para os testes de voto
+      // Garante votação ativa para os testes
       await turing.connect(owner).votingOn();
     });
 
     it("Deve falhar se a votação estiver desativada", async function () {
       await turing.connect(owner).votingOff();
-      await expect(turing.connect(addr1).vote("nome2", 1)).to.be.revertedWith(
-        "Apenas owner ou professora podem executar esta operacao"
-      ).catch(() => {}); // fallback
-
-      // Executa votingOff corretamente e testa vote
       expect(await turing.voting()).to.equal(false);
+
       await expect(turing.connect(addr1).vote("nome2", 1)).to.be.revertedWith(
         "A votacao nao esta ativa"
       );
@@ -178,5 +174,59 @@ describe("Turing Smart Contract (Atividade 13)", function () {
       expect(await turing.balanceOf(addr1.address)).to.equal(1);
     });
   });
-});
 
+  describe("Padrão ERC-20 (Bônus Valendo Turings Extra)", function () {
+    beforeEach(async function () {
+      // Emite tokens para addr1 poder realizar operações de transferência
+      await turing.connect(owner).issueToken("nome1", 20);
+    });
+
+    it("Deve conter os metadados ERC-20 corretos (name, symbol, decimals = 0)", async function () {
+      expect(await turing.name()).to.equal("Turing");
+      expect(await turing.symbol()).to.equal("TUR");
+      expect(await turing.decimals()).to.equal(0);
+      expect(await turing.balanceOf(addr1.address)).to.equal(20);
+    });
+
+    it("Deve permitir transferência direta de Turings entre carteiras via transfer()", async function () {
+      await expect(turing.connect(addr1).transfer(addr2.address, 5))
+        .to.emit(turing, "Transfer")
+        .withArgs(addr1.address, addr2.address, 5);
+
+      expect(await turing.balanceOf(addr1.address)).to.equal(15);
+      expect(await turing.balanceOf(addr2.address)).to.equal(5);
+    });
+
+    it("Deve reverter transferência direta se o saldo for insuficiente", async function () {
+      await expect(
+        turing.connect(addr1).transfer(addr2.address, 50)
+      ).to.be.revertedWithCustomError(turing, "ERC20InsufficientBalance");
+    });
+
+    it("Deve suportar delegação de gastos com approve() e transferFrom()", async function () {
+      // addr1 autoriza addr3 a gastar até 7 Turings em seu nome
+      await expect(turing.connect(addr1).approve(addr3.address, 7))
+        .to.emit(turing, "Approval")
+        .withArgs(addr1.address, addr3.address, 7);
+
+      expect(await turing.allowance(addr1.address, addr3.address)).to.equal(7);
+
+      // addr3 transfere 4 Turings de addr1 para addr4
+      await expect(turing.connect(addr3).transferFrom(addr1.address, addr4.address, 4))
+        .to.emit(turing, "Transfer")
+        .withArgs(addr1.address, addr4.address, 4);
+
+      expect(await turing.balanceOf(addr1.address)).to.equal(16);
+      expect(await turing.balanceOf(addr4.address)).to.equal(4);
+      expect(await turing.allowance(addr1.address, addr3.address)).to.equal(3);
+    });
+
+    it("Deve reverter transferFrom() se a permissão (allowance) for insuficiente", async function () {
+      await turing.connect(addr1).approve(addr3.address, 2);
+
+      await expect(
+        turing.connect(addr3).transferFrom(addr1.address, addr4.address, 5)
+      ).to.be.revertedWithCustomError(turing, "ERC20InsufficientAllowance");
+    });
+  });
+});

@@ -1,23 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "hardhat/console.sol";
 
 /**
  * @title Turing
  * @notice Contrato da Criptomoeda Turing e dApp de Votação (Atividade 13)
- * @dev Implementa a estratégia Uncapped Lazy Supply sem mint inicial no construtor.
+ * @dev Implementa o padrão oficial ERC-20 com estratégia Uncapped Lazy Supply
+ *      (sem mint inicial no construtor) e 0 casas decimais para alinhamento com a dApp.
  */
-contract Turing {
-    string public name = "Turing";
-    string public symbol = "TUR";
-
-    uint256 public totalSupply;
+contract Turing is ERC20 {
     address public owner;
     bool public voting;
-
-    // Balances por endereço
-    mapping(address => uint256) internal balances;
 
     // Controle de acesso: Codinome => Endereço
     mapping(string => address) public users;
@@ -35,8 +30,7 @@ contract Turing {
     // Contador de votos de cada usuário para conceder bônus a cada 10 votos
     mapping(string => uint256) public voteCount;
 
-    // Eventos
-    event Transfer(address indexed from, address indexed to, uint256 value);
+    // Eventos customizados do sistema de votação
     event VoteCast(string indexed voter, string indexed target, uint256 amount);
     event VotingStatusChanged(bool active);
     event UserUpdated(string indexed codinome, address indexed newAddress);
@@ -53,9 +47,9 @@ contract Turing {
         _;
     }
 
-    constructor() {
+    constructor() ERC20("Turing", "TUR") {
         owner = msg.sender;
-        voting = false; // Votação começa inativa até ser ligada
+        voting = true; // Votação inicializada em true conforme especificação oficial (PDF)
 
         // Inicialização com os dados da tabela oficial (Atividade 13)
         _registerInitialUser("roberta", 0x502542668aF09fa7aea52174b9965A7799343Df7, false);
@@ -64,6 +58,13 @@ contract Turing {
         _registerInitialUser("nome3", 0x90F79bf6EB2c4f870365E785982E1f101E93b906, true);
         _registerInitialUser("nome4", 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65, true);
         _registerInitialUser("nome5", 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc, true);
+    }
+
+    /**
+     * @notice Define 0 casas decimais para que 1 Turing corresponda exatamente a 1 unidade inteira de voto.
+     */
+    function decimals() public view virtual override returns (uint8) {
+        return 0;
     }
 
     function _registerInitialUser(string memory codinome, address userAddr, bool isStudent) internal {
@@ -76,7 +77,6 @@ contract Turing {
 
     /**
      * @notice Atualiza o endereço de um usuário no mapping `users`.
-     * @dev Seta a variável `voting` para true conforme especificação.
      */
     function updateUser(string memory codinome, address user_addr) external onlyOwnerOrProfessor {
         require(bytes(codinome).length > 0, "Codinome nao pode ser uma string vazia");
@@ -114,16 +114,14 @@ contract Turing {
 
     /**
      * @notice Emite (minta) tokens para o codinome especificado.
+     * @dev Utiliza a função interna segura `_mint` do padrão ERC-20 OpenZeppelin.
      */
     function issueToken(string memory codinome, uint256 qtde_de_Turings) external onlyOwnerOrProfessor {
         require(qtde_de_Turings > 0, "Quantidade deve ser maior que zero");
         address targetAddr = users[codinome];
         require(targetAddr != address(0), "Usuario nao encontrado no mapping");
 
-        balances[targetAddr] += qtde_de_Turings;
-        totalSupply += qtde_de_Turings;
-
-        emit Transfer(address(0), targetAddr, qtde_de_Turings);
+        _mint(targetAddr, qtde_de_Turings);
     }
 
     /**
@@ -151,27 +149,16 @@ contract Turing {
         // Registra o voto
         hasVote[voterCodinome][codinome] = true;
 
-        // Minta a quantidade para o alvo
-        balances[targetAddr] += qtde_de_Turings;
-        totalSupply += qtde_de_Turings;
-        emit Transfer(address(0), targetAddr, qtde_de_Turings);
+        // Minta a quantidade para o alvo via padrão ERC-20
+        _mint(targetAddr, qtde_de_Turings);
         emit VoteCast(voterCodinome, codinome, qtde_de_Turings);
 
         // Lógica de bonificação: a cada 10 votos realizados, ganha 1 Turing
         voteCount[voterCodinome] += 1;
         if (voteCount[voterCodinome] % 10 == 0) {
-            balances[msg.sender] += 1;
-            totalSupply += 1;
-            emit Transfer(address(0), msg.sender, 1);
+            _mint(msg.sender, 1);
             emit BonusAwarded(voterCodinome, 1);
         }
-    }
-
-    /**
-     * @notice Retorna o saldo de Turings de uma conta.
-     */
-    function balanceOf(address account) external view returns (uint256) {
-        return balances[account];
     }
 
     /**
@@ -179,7 +166,7 @@ contract Turing {
      */
     function balanceOfCodinome(string memory codinome) external view returns (uint256) {
         address userAddr = users[codinome];
-        return balances[userAddr];
+        return balanceOf(userAddr);
     }
 
     /**
@@ -189,4 +176,3 @@ contract Turing {
         return studentList;
     }
 }
-
